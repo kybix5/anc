@@ -12,6 +12,8 @@ class MessageWidget extends StatefulWidget {
 }
 
 class _MessageWidgetState extends State<MessageWidget> {
+  String deviceId = 'unknown';
+
   final TextEditingController _controller = TextEditingController();
 
   final String _key = 'my32lengthsupersecretnooneknows1'; // 32 байта
@@ -20,22 +22,22 @@ class _MessageWidgetState extends State<MessageWidget> {
   List<String> created = [];
   final ScrollController _scrollController = ScrollController();
 
-  Future<void> getDeviceId() async {
+  Future getDeviceId() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    String? deviceId;
+    //String? deviceId;
 
     // Получаем информацию о платформе
     if (Theme.of(context).platform == TargetPlatform.android) {
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
       AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
       String dev = androidInfo.toString();
-      print(dev);
-      //  String deviceId = androidInfo.androidId;
+      //print(dev);
+      deviceId = androidInfo.id;
       // Уникальный идентификатор для Android
     } else if (Theme.of(context).platform == TargetPlatform.iOS) {
       IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-      deviceId =
-          iosInfo.identifierForVendor; // Уникальный идентификатор для iOS
+      deviceId = iosInfo.identifierForVendor
+          .toString(); // Уникальный идентификатор для iOS
     }
     print('Device ID: $deviceId');
   }
@@ -55,7 +57,7 @@ class _MessageWidgetState extends State<MessageWidget> {
     print('--');
     print(iv.base64);
 
-    getDeviceId();
+    // getDeviceId();
 
     // Отправка на сервер
     await http.post(
@@ -63,7 +65,7 @@ class _MessageWidgetState extends State<MessageWidget> {
       body: json.encode({
         'message': encrypted.base64,
         'iv': iv.base64,
-        'sender': '666666666',
+        'sender': deviceId,
       }),
       headers: {'Content-Type': 'application/json'},
     );
@@ -127,10 +129,18 @@ class _MessageWidgetState extends State<MessageWidget> {
     }
   }
 
+/*
   @override
   void initState() {
     super.initState();
     _fetchMessages();
+  }
+*/
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fetchMessages();
+    getDeviceId();
   }
 
   @override
