@@ -1,0 +1,41 @@
+PODS:
+  - device_info_plus (0.0.1):
+    - Flutter
+  - Flutter (1.0.0)
+  - flutter_vlc_player (3.0.3):
+    - Flutter
+    - MobileVLCKit (~> 3.6.0b12)
+  - image_picker_ios (0.0.1):
+    - Flutter
+  - MobileVLCKit (3.6.1b1)
+
+DEPENDENCIES:
+  - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
+  - Flutter (from `Flutter`)
+  - flutter_vlc_player (from `.symlinks/plugins/flutter_vlc_player/ios`)
+  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+
+SPEC REPOS:
+  trunk:
+    - MobileVLCKit
+
+EXTERNAL SOURCES:
+  device_info_plus:
+    :path: ".symlinks/plugins/device_info_plus/ios"
+  Flutter:
+    :path: Flutter
+  flutter_vlc_player:
+    :path: ".symlinks/plugins/flutter_vlc_player/ios"
+  image_picker_ios:
+    :path: ".symlinks/plugins/image_picker_ios/ios"
+
+SPEC CHECKSUMS:
+  device_info_plus: bf2e3232933866d73fe290f2942f2156cdd10342
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_vlc_player: 68553dec38187c14a7800e6d27a30bf9b25b53bc
+  image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
+  MobileVLCKit: 2d9c7c373393ae43086aeeff890bf0b1afc15c5c
+
+PODFILE CHECKSUM: 819463e6a0290f5a72f145ba7cde16e8b6ef0796
+
+COCOAPODS: 1.16.2
