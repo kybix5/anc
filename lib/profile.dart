@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
+//import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -21,7 +21,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   File? _image; // Переменная для хранения локального изображения
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
+    //final picker = ImagePicker();
     //final pickedFile = await picker.getImage(source: ImageSource.gallery);
 /*
     if (pickedFile != null) {

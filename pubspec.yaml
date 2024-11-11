@@ -41,7 +41,6 @@ dependencies:
   http: ^1.2.2
   device_info_plus: ^11.1.0
   encrypt: ^5.0.3
-  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
