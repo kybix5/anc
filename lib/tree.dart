@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart'; // Add this line at the top of your file
+import 'package:device_info_plus/device_info_plus.dart';
 
 String arrayObjsT = '{"table": []}';
 var tableObjsJson = jsonDecode(arrayObjsT)['table'] as List;
@@ -41,6 +42,34 @@ class _TreeScreenWidgetState extends State<TreeScreenWidget> {
     setState(() {
       _ListBuilderState;
     });
+  }
+
+  String deviceId = 'unknown';
+
+  Future getDeviceId() async {
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    //String? deviceId;
+
+    // Получаем информацию о платформе
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      String dev = androidInfo.toString();
+      //print(dev);
+      deviceId = androidInfo.id;
+      // Уникальный идентификатор для Android
+    } else if (Theme.of(context).platform == TargetPlatform.iOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      deviceId = iosInfo.identifierForVendor
+          .toString(); // Уникальный идентификатор для iOS
+    }
+    print('Device ID: $deviceId');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    getDeviceId();
   }
 
   @override

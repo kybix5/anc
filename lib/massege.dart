@@ -107,7 +107,12 @@ class _MessageWidgetState extends State<MessageWidget> {
         try {
           final decrypted = encrypter.decrypt64(encryptedMessage, iv: iv);
           setState(() {
-            sender.add(senderIn);
+            //если автором являеться это устройство то отмечаем
+            if (senderIn == deviceId) {
+              sender.add("вы");
+            } else {
+              sender.add(senderIn);
+            }
             messages.add(decrypted);
             created.add(createdAt);
           });
