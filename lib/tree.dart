@@ -14,6 +14,7 @@ var obj_femaly = jsonDecode(arrayObjsT)['table'] as List;
 var obj_perents = jsonDecode(arrayObjsT)['table'] as List;
 var obj_brothers = jsonDecode(arrayObjsT)['table'] as List;
 var obj_children = jsonDecode(arrayObjsT)['table'] as List;
+var serche = '1';
 
 class TreeScreenWidget extends StatefulWidget {
   const TreeScreenWidget({super.key});
@@ -30,6 +31,7 @@ class _TreeScreenWidgetState extends State<TreeScreenWidget> {
   void onQueryChanged(String query) {
     // Обновляем текст поиска
     _search.text = query;
+    serche = query;
 
     // Очищаем временный список
     tableTemp.clear();
@@ -134,7 +136,7 @@ class ListBuilderState extends StatefulWidget {
 class _ListBuilderState extends State<ListBuilderState> {
   Future<String> download() async {
     print("Future");
-    if (tableTemp.length >= 1) {
+    if (tableTemp.length >= 1 || serche.length > 1) {
       print("tableTemp");
       return Future.value("Data download"); // return your response
     } else {
@@ -615,12 +617,13 @@ class GenealogyTree extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            for (var i = 1; i <= obj_perents.length - 1; i++)
+                            for (var i = 0; i <= obj_perents.length - 1; i++)
                               Row(
                                 children: [
                                   PersonNode(
                                     kinship: obj_perents[i]["kinship"],
                                     name: obj_perents[i]["name"],
+                                    color: Colors.blueAccent,
                                   ),
                                   SizedBox(width: 10),
                                 ],
@@ -638,12 +641,15 @@ class GenealogyTree extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            for (var i = 1; i <= obj_brothers.length - 1; i++)
+                            for (var i = 0; i <= obj_brothers.length - 1; i++)
                               Row(
                                 children: [
                                   PersonNode(
                                     kinship: obj_brothers[i]["kinship"],
                                     name: obj_brothers[i]["name"],
+                                    color: (obj_brothers[i]["kinship"] == '-')
+                                        ? Colors.black
+                                        : Colors.blueAccent,
                                   ),
                                   SizedBox(width: 10),
                                 ],
@@ -659,12 +665,13 @@ class GenealogyTree extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            for (var i = 1; i <= obj_children.length - 1; i++)
+                            for (var i = 0; i <= obj_children.length - 1; i++)
                               Row(
                                 children: [
                                   PersonNode(
                                     kinship: obj_children[i]["kinship"],
                                     name: obj_children[i]["name"],
+                                    color: Colors.blueAccent,
                                   ),
                                   SizedBox(width: 10),
                                 ],
@@ -686,14 +693,17 @@ class GenealogyTree extends StatelessWidget {
 class PersonNode extends StatelessWidget {
   final String kinship;
   final String name;
-  const PersonNode({required this.kinship, required this.name});
+  //final Color color=Colors.blueAccent;
+  final Color color;
+  const PersonNode(
+      {required this.kinship, required this.name, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.blueAccent,
+        color: color,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
