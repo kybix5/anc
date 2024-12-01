@@ -11,6 +11,10 @@ var tableTemp = jsonDecode(arrayObjsT)['table'] as List;
 var obj_person = jsonDecode(arrayObjsT)['table'] as List;
 var obj_femaly = jsonDecode(arrayObjsT)['table'] as List;
 
+var obj_perents = jsonDecode(arrayObjsT)['table'] as List;
+var obj_brothers = jsonDecode(arrayObjsT)['table'] as List;
+var obj_children = jsonDecode(arrayObjsT)['table'] as List;
+
 class TreeScreenWidget extends StatefulWidget {
   const TreeScreenWidget({super.key});
 
@@ -21,27 +25,35 @@ class TreeScreenWidget extends StatefulWidget {
 class _TreeScreenWidgetState extends State<TreeScreenWidget> {
   final _search = TextEditingController();
 
-  void onQueryChanged(String query) {
-    print(_search.text);
-    String myString = 'Hello';
+  late _ListBuilderState listBuilderState; // Ссылка на состояние ListBuilder
 
+  void onQueryChanged(String query) {
+    // Обновляем текст поиска
+    _search.text = query;
+
+    // Очищаем временный список
     tableTemp.clear();
 
-    for (int i = 0; i < tableObjsJson.length; i++) {
-      myString = tableObjsJson[i]["name"];
-      if (myString.contains(_search.text)) {
-        tableTemp.add({
-          "n_id": tableObjsJson[i]["n_id"],
-          "name": tableObjsJson[i]["name"],
-          "age": tableObjsJson[i]["age"],
-          "birthday": tableObjsJson[i]["birthday"]
-        });
+    // Проверяем, если строка поиска не пустая
+    if (query.isNotEmpty) {
+      for (int i = 0; i < tableObjsJson.length; i++) {
+        String myString = tableObjsJson[i]["name"];
+        if (myString.contains(query)) {
+          tableTemp.add({
+            "n_id": tableObjsJson[i]["n_id"],
+            "name": tableObjsJson[i]["name"],
+            "age": tableObjsJson[i]["age"],
+            "birthday": tableObjsJson[i]["birthday"]
+          });
+        }
       }
     }
+
+    // Отладочный вывод
     print(tableTemp);
-    setState(() {
-      _ListBuilderState;
-    });
+
+// Обновляем состояние ListBuilder
+    listBuilderState.change(); // Вызываем метод change() у ListBuilderState
   }
 
   String deviceId = 'unknown';
@@ -78,8 +90,12 @@ class _TreeScreenWidgetState extends State<TreeScreenWidget> {
         appBar: AppBar(title: const Text('Древо')),
         body: Column(
           children: <Widget>[
-            const Expanded(
-              child: ListBuilderState(),
+            Expanded(
+              child: ListBuilderState(
+                onChange: (state) {
+                  listBuilderState = state; // Сохраняем состояние ListBuilder
+                },
+              ),
             ),
             TextField(
               controller: _search,
@@ -107,7 +123,9 @@ class _TreeScreenWidgetState extends State<TreeScreenWidget> {
 }
 
 class ListBuilderState extends StatefulWidget {
-  const ListBuilderState({super.key});
+  // const ListBuilderState({super.key});
+  const ListBuilderState({super.key, required this.onChange});
+  final Function(_ListBuilderState) onChange; // Параметр обратного вызова
 
   @override
   State<ListBuilderState> createState() => _ListBuilderState();
@@ -115,7 +133,9 @@ class ListBuilderState extends StatefulWidget {
 
 class _ListBuilderState extends State<ListBuilderState> {
   Future<String> download() async {
-    if (tableObjsJson.length > 1) {
+    print("Future");
+    if (tableTemp.length >= 1) {
+      print("tableTemp");
       return Future.value("Data download"); // return your response
     } else {
       var request =
@@ -129,6 +149,16 @@ class _ListBuilderState extends State<ListBuilderState> {
       }
       return Future.value("Data download"); // return your response
     }
+  }
+
+  void change() {
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.onChange(this); // Передаем текущее состояние родительскому виджету
   }
 
   @override
@@ -160,6 +190,18 @@ class _ListBuilderState extends State<ListBuilderState> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            IconButton(
+                              icon: const Icon(Icons.access_alarm),
+                              onPressed: () {
+                                showDialog(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return GenealogyTree(
+                                          tableTemp[index]["name"],
+                                          tableTemp[index]["n_id"]);
+                                    });
+                              },
+                            ),
                             IconButton(
                               icon: const Icon(Icons.account_circle),
                               onPressed: () {
@@ -528,5 +570,148 @@ class _add_person extends State<add_person> {
             }
           }
         });
+  }
+}
+
+class GenealogyTree extends StatelessWidget {
+  String id_person;
+  String id_name;
+  GenealogyTree(this.id_name, this.id_person);
+
+  Future<String> get_person() async {
+    var request = await HttpClient().getUrl(
+        Uri.parse('https://anchih.e-rec.ru/api/person/tree.php?id=$id_person'));
+    // sends the request
+    var response = await request.close();
+    // transforms and prints the response
+    await for (var contents in response.transform(const Utf8Decoder())) {
+      obj_perents = jsonDecode(contents)['perents'] as List;
+      obj_brothers = jsonDecode(contents)['brothers'] as List;
+      obj_children = jsonDecode(contents)['children'] as List;
+    }
+    return Future.value("Data download"); // return your response
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+        future: get_person(), // function where you call your api
+        builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+          // AsyncSnapshot<Your object type>
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: Text('Идет загрузка...'));
+          } else {
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            } else {
+              return AlertDialog(
+                title: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Второе поколение: Родители
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var i = 1; i <= obj_perents.length - 1; i++)
+                              Row(
+                                children: [
+                                  PersonNode(
+                                    kinship: obj_perents[i]["kinship"],
+                                    name: obj_perents[i]["name"],
+                                  ),
+                                  SizedBox(width: 10),
+                                ],
+                              ),
+
+                            //PersonNode(name: 'Мать'),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 40),
+
+                      // Третье поколение: Вы
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var i = 1; i <= obj_brothers.length - 1; i++)
+                              Row(
+                                children: [
+                                  PersonNode(
+                                    kinship: obj_brothers[i]["kinship"],
+                                    name: obj_brothers[i]["name"],
+                                  ),
+                                  SizedBox(width: 10),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 40),
+
+                      // Четвертое поколение: Дети
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var i = 1; i <= obj_children.length - 1; i++)
+                              Row(
+                                children: [
+                                  PersonNode(
+                                    kinship: obj_children[i]["kinship"],
+                                    name: obj_children[i]["name"],
+                                  ),
+                                  SizedBox(width: 10),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+        });
+  }
+}
+
+class PersonNode extends StatelessWidget {
+  final String kinship;
+  final String name;
+  const PersonNode({required this.kinship, required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.blueAccent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Column(
+            children: [
+              Text(
+                kinship,
+                style: TextStyle(color: Colors.white, fontSize: 8),
+              ),
+              Text(
+                name,
+                style: TextStyle(color: Colors.white, fontSize: 8),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
