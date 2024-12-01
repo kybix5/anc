@@ -193,7 +193,7 @@ class _ListBuilderState extends State<ListBuilderState> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.access_alarm),
+                              icon: const Icon(Icons.family_restroom),
                               onPressed: () {
                                 showDialog(
                                     context: context,
