@@ -186,8 +186,7 @@ class _ListBuilderState extends State<ListBuilderState> {
                         title: Text(tableTemp[index]["name"]),
                         // ignore: prefer_interpolation_to_compose_strings
                         subtitle: Text(
-                          "${"Возрасть:" + tableTemp[index]["age"]} год.рождения:" +
-                              tableTemp[index]["birthday"],
+                          "д.р:" + tableTemp[index]["birthday"],
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -205,7 +204,7 @@ class _ListBuilderState extends State<ListBuilderState> {
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.account_circle),
+                              icon: const Icon(Icons.person_add),
                               onPressed: () {
                                 showDialog(
                                     context: context,
