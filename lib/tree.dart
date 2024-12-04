@@ -620,6 +620,7 @@ class GenealogyTree extends StatelessWidget {
                               Row(
                                 children: [
                                   PersonNode(
+                                    id: obj_perents[i]["n_id"],
                                     kinship: obj_perents[i]["kinship"],
                                     name: obj_perents[i]["name"],
                                     color: Colors.blueAccent,
@@ -627,8 +628,6 @@ class GenealogyTree extends StatelessWidget {
                                   SizedBox(width: 10),
                                 ],
                               ),
-
-                            //PersonNode(name: 'Мать'),
                           ],
                         ),
                       ),
@@ -644,6 +643,7 @@ class GenealogyTree extends StatelessWidget {
                               Row(
                                 children: [
                                   PersonNode(
+                                    id: obj_brothers[i]["n_id"],
                                     kinship: obj_brothers[i]["kinship"],
                                     name: obj_brothers[i]["name"],
                                     color: (obj_brothers[i]["kinship"] == '-')
@@ -668,6 +668,7 @@ class GenealogyTree extends StatelessWidget {
                               Row(
                                 children: [
                                   PersonNode(
+                                    id: obj_children[i]["n_id"],
                                     kinship: obj_children[i]["kinship"],
                                     name: obj_children[i]["name"],
                                     color: Colors.blueAccent,
@@ -690,36 +691,49 @@ class GenealogyTree extends StatelessWidget {
 }
 
 class PersonNode extends StatelessWidget {
+  final String id;
   final String kinship;
   final String name;
   //final Color color=Colors.blueAccent;
   final Color color;
   const PersonNode(
-      {required this.kinship, required this.name, required this.color});
+      {required this.id,
+      required this.kinship,
+      required this.name,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Column(
-            children: [
-              Text(
-                kinship,
-                style: TextStyle(color: Colors.white, fontSize: 8),
-              ),
-              Text(
-                name,
-                style: TextStyle(color: Colors.white, fontSize: 8),
-              ),
-            ],
-          ),
-        ],
+    return InkWell(
+      onTap: () {
+        showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return GenealogyTree(name, id);
+            });
+      },
+      child: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Column(
+              children: [
+                Text(
+                  kinship,
+                  style: TextStyle(color: Colors.white, fontSize: 8),
+                ),
+                Text(
+                  name,
+                  style: TextStyle(color: Colors.white, fontSize: 8),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
