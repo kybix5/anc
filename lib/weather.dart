@@ -82,15 +82,19 @@ class _WeatherScreenWidgetState extends State<WeatherScreenWidget> {
                                   AlertDialog alert = AlertDialog(
                                     title: Column(
                                       children: [
-                                         Text(
+                                        Text(
                                           tableObjsJson[index]["city"]
                                               as String,
-                                          style: const TextStyle(fontSize: 24),
+                                          style: const TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold),
                                         ),
                                         Text(
                                           tableObjsJson[index]["temperature"]
                                               as String,
-                                          style: const TextStyle(fontSize: 10),
+                                          style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold),
                                         ),
                                         Text(
                                           tableObjsJson[index]["short"]
