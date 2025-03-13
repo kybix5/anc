@@ -13,7 +13,8 @@ class _CameraScreenWidgetState extends State<CameraScreenWidget> {
   bool _isError = false; // Новое состояние для отслеживания ошибок
 
   final VlcPlayerController _videoPlayerController = VlcPlayerController.network(
-    'rtsp://46.16.226.6:554/user=user&password=&channel=1&stream=0',
+    //'rtsp://46.16.226.6:554/user=user&password=&channel=1&stream=0',
+    'http://46.16.226.6:8090',
     //'http://media.w3.org/2010/05/bunny/movie.mp4',
     hwAcc: HwAcc.full,
     autoPlay: true,
