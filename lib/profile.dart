@@ -39,7 +39,8 @@ class _ProfileSettingsState extends State<ProfileSettings> {
       // Подготовка данных для отправки
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://yourapi.com/update_profile'), // Замените на ваш URL
+        Uri.parse(
+            'https://anchih.e-rec.ru/api/profile/update_profile'), // Замените на ваш URL
       );
 
       // Добавление полей формы
