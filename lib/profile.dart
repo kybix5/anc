@@ -20,6 +20,37 @@ class _ProfileSettingsState extends State<ProfileSettings> {
       'https://anchih.e-rec.ru/api/jpg/photo.jpeg'; // Переменная для хранения URL изображения
   File? _image; // Переменная для хранения локального изображения
 
+ @override
+  void initState() {
+    super.initState();
+    _fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
+  }
+
+  Future<void> _fetchProfileData() async {
+    try {
+      final response = await http.get(Uri.parse('https://anchih.e-rec.ru/api/profile/get_profile')); // Замените на ваш URL
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _username = data['username'];
+          _email = data['email'];
+          _firstName = data['first_name'];
+          _lastName = data['last_name'];
+          _imageUrl = data['photo']; // Предполагается, что URL изображения возвращается в ответе
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка получения данных профиля')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Произошла ошибка: $e')),
+      );
+    }
+  }
+
+  
   Future<void> _pickImage() async {
     //final picker = ImagePicker();
     //final pickedFile = await picker.getImage(source: ImageSource.gallery);
