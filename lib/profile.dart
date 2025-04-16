@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 //import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ProfileSettings extends StatefulWidget {
   @override
@@ -16,19 +17,52 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   String _firstName = '';
   String _lastName = '';
 
+  String deviceId = 'unknown';
+
   String? _imageUrl =
       'https://anchih.e-rec.ru/api/jpg/photo.jpeg'; // Переменная для хранения URL изображения
   File? _image; // Переменная для хранения локального изображения
 
- @override
+  Future getDeviceId() async {
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    //String? deviceId;
+
+    // Получаем информацию о платформе
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      String dev = androidInfo.toString();
+      //print(dev);
+      deviceId = androidInfo.id;
+      // Уникальный идентификатор для Android
+    } else if (Theme.of(context).platform == TargetPlatform.iOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      deviceId = iosInfo.identifierForVendor
+          .toString(); // Уникальный идентификатор для iOS
+    }
+    print('Device ID: $deviceId');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    getDeviceId();
+    print('1');
+    _fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
+  }
+
+  @override
   void initState() {
     super.initState();
-    _fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
+    // getDeviceId();
+    //_fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
+    print('2');
   }
 
   Future<void> _fetchProfileData() async {
     try {
-      final response = await http.get(Uri.parse('https://anchih.e-rec.ru/api/profile/get_profile')); // Замените на ваш URL
+      final response = await http.get(Uri.parse(
+          'https://anchih.e-rec.ru/api/profile/get_profile&id=$deviceId')); // Замените на ваш URL
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -36,7 +70,8 @@ class _ProfileSettingsState extends State<ProfileSettings> {
           _email = data['email'];
           _firstName = data['first_name'];
           _lastName = data['last_name'];
-          _imageUrl = data['photo']; // Предполагается, что URL изображения возвращается в ответе
+          _imageUrl = data[
+              'photo']; // Предполагается, что URL изображения возвращается в ответе
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -50,7 +85,6 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     }
   }
 
-  
   Future<void> _pickImage() async {
     //final picker = ImagePicker();
     //final pickedFile = await picker.getImage(source: ImageSource.gallery);
