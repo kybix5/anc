@@ -47,7 +47,6 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     getDeviceId();
-    print('1');
     _fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
   }
 
@@ -56,7 +55,6 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     super.initState();
     // getDeviceId();
     //_fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
-    print('2');
   }
 
   Future<void> _fetchProfileData() async {
