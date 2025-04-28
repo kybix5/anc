@@ -60,7 +60,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   Future<void> _fetchProfileData() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://anchih.e-rec.ru/api/profile/get_profile&id=$deviceId')); // Замените на ваш URL
+          'https://anchih.e-rec.ru/api/profile/?id=$deviceId')); // Замените на ваш URL
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
