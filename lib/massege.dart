@@ -47,6 +47,7 @@ class _MessageWidgetState extends State<MessageWidget> {
     const senderIn = 'Вы';
     final createdAt = DateTime.now().toIso8601String().split('.')[0];
     final iv = encrypt.IV.fromLength(16);
+    //final iv = IV.fromSecureRandom(16);
     final encrypter =
         encrypt.Encrypter(encrypt.AES(encrypt.Key.fromUtf8(_key)));
 
