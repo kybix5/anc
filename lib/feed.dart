@@ -88,31 +88,31 @@ class _FeedCardState extends State<FeedCard> {
                url.endsWith('.wmv') ||
                url.endsWith('.flv') ||
                url.endsWith('.webm');
-    
-    // Создаем контроллер только для видео файлов
-    if (_isVideo) {
-      _videoPlayerController = VlcPlayerController.network(
-        '', // Начинаем с пустого URL
-        autoPlay: false,
-      );
-    }
   }
 
-  Future<void> _initializeVideo() async {
-    if (!_isVideo || _videoPlayerController == null || _isInitialized) return;
+  Future<void> _initializeController() async {
+    if (!_isVideo || _isInitialized) return;
     
     setState(() {
       _isLoading = true;
     });
     
     try {
-      // Сначала останавливаем текущее видео, если оно играет
-      if (_isPlaying) {
+      // Освобождаем старый контроллер, если он есть
+      if (_videoPlayerController != null) {
         await _videoPlayerController!.stop();
+        _videoPlayerController!.dispose();
       }
       
-      // Устанавливаем медиа из сети
-      await _videoPlayerController!.setStreamUrl(widget.item['url_feed']);
+      // Создаем новый контроллер с нужным URL
+      _videoPlayerController = VlcPlayerController.network(
+        widget.item['url_feed'],
+        autoPlay: false, // Не запускаем автоматически
+        options: VlcPlayerOptions(),
+      );
+      
+      // Инициализируем контроллер
+      await _videoPlayerController!.initialize();
       
       setState(() {
         _isInitialized = true;
@@ -133,12 +133,14 @@ class _FeedCardState extends State<FeedCard> {
   }
 
   Future<void> _togglePlay() async {
-    if (!_isVideo || _videoPlayerController == null) return;
+    if (!_isVideo) return;
     
     if (!_isInitialized) {
-      await _initializeVideo();
+      await _initializeController();
       return;
     }
+    
+    if (_videoPlayerController == null) return;
     
     try {
       if (_isPlaying) {
@@ -157,25 +159,29 @@ class _FeedCardState extends State<FeedCard> {
     }
   }
 
-  Future<void> _stopVideo() async {
-    if (!_isVideo || _videoPlayerController == null || !_isInitialized) return;
-    
-    try {
-      await _videoPlayerController!.stop();
+  Future<void> _stopAndDispose() async {
+    if (_videoPlayerController != null) {
+      try {
+        if (_isPlaying) {
+          await _videoPlayerController!.stop();
+        }
+        _videoPlayerController!.dispose();
+      } catch (e) {
+        print("Ошибка при остановке видео: $e");
+      }
+      _videoPlayerController = null;
+      
       setState(() {
-        _isPlaying = false;
         _isInitialized = false;
+        _isPlaying = false;
+        _isLoading = false;
       });
-    } catch (e) {
-      print("Ошибка остановки видео: $e");
     }
   }
 
   @override
   void dispose() {
-    if (_videoPlayerController != null) {
-      _videoPlayerController!.dispose();
-    }
+    _stopAndDispose();
     super.dispose();
   }
 
@@ -223,27 +229,24 @@ class _FeedCardState extends State<FeedCard> {
                         ),
                       ),
                     
-                    // Превью или иконка play
+                    // Превью или иконка play (когда видео не инициализировано или на паузе)
                     if (!_isLoading && (!_isInitialized || !_isPlaying))
                       Container(
                         color: Colors.black,
                         child: Center(
                           child: Icon(
-                            Icons.play_circle_filled,
+                            _isInitialized ? Icons.play_arrow : Icons.play_circle_filled,
                             color: Colors.white,
                             size: 50,
                           ),
                         ),
                       ),
                     
-                    // Индикатор паузы
+                    // Полупрозрачный оверлей с иконкой play (для видео на паузе)
                     if (_isInitialized && !_isPlaying && !_isLoading)
-                      Positioned(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
+                      Container(
+                        color: Colors.black54,
+                        child: Center(
                           child: Icon(
                             Icons.play_arrow,
                             color: Colors.white,
@@ -252,7 +255,7 @@ class _FeedCardState extends State<FeedCard> {
                         ),
                       ),
                     
-                    // Индикатор воспроизведения
+                    // Индикатор воспроизведения (когда видео играет)
                     if (_isPlaying && _isInitialized && !_isLoading)
                       Positioned(
                         top: 10,
