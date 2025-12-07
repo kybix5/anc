@@ -78,18 +78,28 @@ class _FeedCardState extends State<FeedCard> {
   void initState() {
     super.initState();
     // Инициализируем контроллер, но не запускаем автоматически
-    if (widget.item['url_feed'].toString().endsWith('.mp4') ||
-        widget.item['url_feed'].toString().contains('http')) {
-      _vlcController = VlcPlayerController.network(
-        widget.item['url_feed'],
-        hwAcc: HwAcc.FULL,
-        autoPlay: false, // Изменено на false
-        options: VlcPlayerOptions(),
-      );
-      
-      // Слушаем изменения состояния контроллера
-      _vlcController?.addListener(_listener);
+    if (_isVideoUrl(widget.item['url_feed'].toString())) {
+      _initializeController();
     }
+  }
+
+  bool _isVideoUrl(String url) {
+    return url.endsWith('.mp4') || 
+           url.contains('.mp4') || 
+           url.contains('video') ||
+           url.startsWith('http');
+  }
+
+  void _initializeController() {
+    _vlcController = VlcPlayerController.network(
+      widget.item['url_feed'],
+      // hwAcc: HwAcc.FULL, // Убрано, так как вызывает ошибку
+      autoPlay: false, // Изменено на false
+      options: VlcPlayerOptions(),
+    );
+    
+    // Слушаем изменения состояния контроллера
+    _vlcController?.addListener(_listener);
   }
 
   void _listener() {
@@ -114,34 +124,40 @@ class _FeedCardState extends State<FeedCard> {
       setState(() {
         _isInitialized = true;
         _isLoading = false;
-      });
-    }
-    
-    if (_isPlaying) {
-      await _vlcController?.pause();
-      setState(() {
-        _isPlaying = false;
-      });
-    } else {
-      await _vlcController?.play();
-      setState(() {
         _isPlaying = true;
       });
+    } else {
+      if (_isPlaying) {
+        await _vlcController?.pause();
+        setState(() {
+          _isPlaying = false;
+        });
+      } else {
+        await _vlcController?.play();
+        setState(() {
+          _isPlaying = true;
+        });
+      }
     }
   }
 
   @override
   void dispose() {
     _vlcController?.removeListener(_listener);
-    _vlcController?.stop();
+    
+    // Останавливаем воспроизведение вместо вызова stop()
+    if (_isPlaying) {
+      _vlcController?.pause();
+    }
+    
+    // Освобождаем ресурсы
     _vlcController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isVideo = widget.item['url_feed'].toString().endsWith('.mp4') ||
-                  widget.item['url_feed'].toString().contains('.mp4');
+    bool isVideo = _isVideoUrl(widget.item['url_feed'].toString());
     
     return Card(
       margin: EdgeInsets.all(8),
@@ -171,14 +187,15 @@ class _FeedCardState extends State<FeedCard> {
                               child: _isLoading
                                   ? CircularProgressIndicator()
                                   : Icon(
-                                      _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                                      Icons.play_circle_filled,
                                       color: Colors.white,
                                       size: 50,
                                     ),
                             ),
                           ),
                   ),
-                  if (!_isPlaying && !_isLoading && _isInitialized)
+                  // Показываем иконку play только если видео не играет
+                  if (!_isPlaying && _isInitialized)
                     Positioned(
                       child: Container(
                         decoration: BoxDecoration(
