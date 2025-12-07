@@ -14,8 +14,8 @@ class _FeedScreenWidgetState extends State<FeedScreenWidget> {
 
   Future<String> download() async {
     try {
-      var request = await HttpClient().getUrl(
-          Uri.parse('https://anchih.e-rec.ru/api/feed/get_feed.php'));
+      var request = await HttpClient()
+          .getUrl(Uri.parse('https://anchih.e-rec.ru/api/feed/get_feed.php'));
       var response = await request.close();
 
       await for (var contents in response.transform(Utf8Decoder())) {
@@ -81,12 +81,12 @@ class _FeedCardState extends State<FeedCard> {
     // Определяем, является ли URL видео
     final url = widget.item['url_feed'].toString().toLowerCase();
     _isVideo = url.endsWith('.mp4') ||
-               url.contains('.mp4?') ||
-               url.endsWith('.mov') ||
-               url.endsWith('.avi') ||
-               url.endsWith('.wmv') ||
-               url.endsWith('.flv') ||
-               url.endsWith('.webm');
+        url.contains('.mp4?') ||
+        url.endsWith('.mov') ||
+        url.endsWith('.avi') ||
+        url.endsWith('.wmv') ||
+        url.endsWith('.flv') ||
+        url.endsWith('.webm');
   }
 
   Future<void> _togglePlay() async {
@@ -99,7 +99,7 @@ class _FeedCardState extends State<FeedCard> {
         // Создаем контроллер с URL при первом нажатии
         _videoPlayerController = VlcPlayerController.network(
           widget.item['url_feed'],
-          hwAcc: HwAcc.FULL,
+          //hwAcc: HwAcc.FULL,
           autoPlay: true,
           options: VlcPlayerOptions(),
         );
@@ -164,7 +164,8 @@ class _FeedCardState extends State<FeedCard> {
                             aspectRatio: 16 / 9,
                             placeholder: Center(
                               child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             ),
                           ),
@@ -173,7 +174,8 @@ class _FeedCardState extends State<FeedCard> {
                         if (_isLoading)
                           Center(
                             child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           ),
 
