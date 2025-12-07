@@ -23,23 +23,19 @@ class _MessageWidgetState extends State<MessageWidget> {
   final ScrollController _scrollController = ScrollController();
 
   Future getDeviceId() async {
-    try {
-      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      if (Theme.of(context).platform == TargetPlatform.android) {
-        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id ?? 'unknown';
-      } else if (Theme.of(context).platform == TargetPlatform.iOS) {
-        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-        deviceId = iosInfo.identifierForVendor ?? 'unknown';
-      }
-      print('Device ID: $deviceId');
-    } catch (e) {
-      print('Ошибка получения Device ID: $e');
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      deviceId = androidInfo.id;
+    } else if (Theme.of(context).platform == TargetPlatform.iOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      deviceId = iosInfo.identifierForVendor.toString();
     }
+    print('Device ID: $deviceId');
   }
 
   void _sendMessage(String message) async {
-    if (message.isEmpty) return;
+    if (message.isEmpty) return; 
     const senderIn = 'Вы';
     final createdAt = DateTime.now().toIso8601String().split('.')[0];
     final iv = encrypt.IV.fromLength(16);
@@ -48,86 +44,79 @@ class _MessageWidgetState extends State<MessageWidget> {
 
     final encrypted = encrypter.encrypt(message, iv: iv);
 
-    try {
-      await http.post(
-        Uri.parse('https://anchih.e-rec.ru/api/store_message.php'),
-        body: json.encode({
-          'message': encrypted.base64,
-          'iv': iv.base64,
-          'sender': deviceId,
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
+    await http.post(
+      Uri.parse('https://anchih.e-rec.ru/api/store_message.php'),
+      body: json.encode({
+        'message': encrypted.base64,
+        'iv': iv.base64,
+        'sender': deviceId,
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      setState(() {
-        sender.add(senderIn);
-        messages.add(message);
-        created.add(createdAt);
-      });
+    setState(() {
+      sender.add(senderIn);
+      messages.add(message);
+      created.add(createdAt);
+    });
 
-      _scrollToBottom();
-    } catch (e) {
-      print('Ошибка отправки сообщения: $e');
-    }
+    // ⚠ Проверяем наличие элементов перед прокруткой
+    _scrollToBottom();
   }
 
   void _fetchMessages() async {
-    try {
-      final response = await http
-          .get(Uri.parse('https://anchih.e-rec.ru/api/get_messages.php'));
+    final response = await http
+        .get(Uri.parse('https://anchih.e-rec.ru/api/get_messages.php'));
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonMessages = json.decode(response.body);
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonMessages = json.decode(response.body);
 
-        if (jsonMessages.isEmpty) {
-          print('Сообщений нет');
-          if (!mounted) return;
-          setState(() {}); // чтобы Center("Нет сообщений") отобразился
-          return;
-        }
-
-        for (var jsonMessage in jsonMessages) {
-          final iv = encrypt.IV.fromBase64(jsonMessage['iv']);
-          final encryptedMessage = jsonMessage['message'];
-          final senderIn = jsonMessage['sender'];
-          final createdAt = jsonMessage['created_at'];
-
-          final encrypter =
-              encrypt.Encrypter(encrypt.AES(encrypt.Key.fromUtf8(_key)));
-
-          try {
-            final decrypted = encrypter.decrypt64(encryptedMessage, iv: iv);
-
-            if (!mounted) return;
-
-            setState(() {
-              sender.add(senderIn == deviceId ? "вы" : senderIn);
-              messages.add(decrypted);
-              created.add(createdAt);
-            });
-          } catch (e) {
-            print('Ошибка дешифрования: $e');
-          }
-        }
-
-        // Прокрутка вниз после всех обновлений
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom();
-        });
-      } else {
-        print('Ошибка сервера: ${response.statusCode}');
+      // ⚠ Если сообщений нет, вызываем setState для Center
+      if (jsonMessages.isEmpty) {
+        print('Сообщений нет');
+        if (!mounted) return;
+        setState(() {});
+        return;
       }
-    } catch (e) {
-      print('Ошибка запроса: $e');
+
+      for (var jsonMessage in jsonMessages) {
+        final iv = encrypt.IV.fromBase64(jsonMessage['iv']);
+        final encryptedMessage = jsonMessage['message'];
+        final senderIn = jsonMessage['sender'];
+        final createdAt = jsonMessage['created_at'];
+
+        final encrypter =
+            encrypt.Encrypter(encrypt.AES(encrypt.Key.fromUtf8(_key)));
+
+        try {
+          final decrypted = encrypter.decrypt64(encryptedMessage, iv: iv);
+
+          if (!mounted) return;
+
+          setState(() {
+            sender.add(senderIn == deviceId ? "вы" : senderIn);
+            messages.add(decrypted);
+            created.add(createdAt);
+          });
+        } catch (e) {
+          print('Ошибка дешифрования: $e');
+        }
+      }
+
+      // ⚠ Прокрутка вниз только если есть элементы
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    } else {
+      print('Ошибка сервера: ${response.statusCode}');
     }
   }
 
   void _scrollToBottom() {
-    if (!mounted) return;
     if (_scrollController.hasClients && messages.isNotEmpty) {
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     }
@@ -136,12 +125,9 @@ class _MessageWidgetState extends State<MessageWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // ⚠ Переносим асинхронный вызов внутрь Future.delayed
-    // чтобы context точно был готов
-    Future.microtask(() {
-      getDeviceId();
-      _fetchMessages();
-    });
+    // ⚠ Асинхронные вызовы оставляем как есть
+    getDeviceId();
+    _fetchMessages();
   }
 
   @override
@@ -162,8 +148,8 @@ class _MessageWidgetState extends State<MessageWidget> {
                         child: ListTile(
                           title: Text(
                             sender[index],
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.blue),
+                            style:
+                                const TextStyle(fontSize: 10, color: Colors.blue),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
