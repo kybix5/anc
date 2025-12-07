@@ -43,7 +43,7 @@ class _FeedScreenWidgetState extends State<FeedScreenWidget> {
           return Center(child: Text('Error: ${snapshot.error}'));
         } else {
           return Scaffold(
-            appBar: AppBar(title: Text('Лента')),
+            appBar: AppBar(title: Text('Лента1')),
             body: ListView.builder(
               padding: const EdgeInsets.all(8),
               itemCount: tableObjsJson.length,
