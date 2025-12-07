@@ -69,32 +69,39 @@ class FeedCard extends StatefulWidget {
 }
 
 class _FeedCardState extends State<FeedCard> {
-  VlcPlayerController? _vlcController;
+  late VlcPlayerController? _vlcController;
   bool _isPlaying = false;
   bool _isInitialized = false;
   bool _isLoading = false;
+  bool _isDisposed = false;
+
+  bool get isVideo {
+    final url = widget.item['url_feed'].toString().toLowerCase();
+    return url.endsWith('.mp4') || 
+           url.contains('.mp4?') || 
+           url.contains('.mov') ||
+           url.contains('.avi') ||
+           url.contains('.wmv') ||
+           url.contains('.flv') ||
+           url.contains('.webm') ||
+           url.contains('/video/');
+  }
 
   @override
   void initState() {
     super.initState();
-    // Инициализируем контроллер, но не запускаем автоматически
-    if (_isVideoUrl(widget.item['url_feed'].toString())) {
+    _isDisposed = false;
+    
+    // Инициализируем контроллер только для видео, но не запускаем автоматически
+    if (isVideo) {
       _initializeController();
     }
-  }
-
-  bool _isVideoUrl(String url) {
-    return url.endsWith('.mp4') || 
-           url.contains('.mp4') || 
-           url.contains('video') ||
-           url.startsWith('http');
   }
 
   void _initializeController() {
     _vlcController = VlcPlayerController.network(
       widget.item['url_feed'],
-      // hwAcc: HwAcc.FULL, // Убрано, так как вызывает ошибку
-      autoPlay: false, // Изменено на false
+      autoPlay: false,
       options: VlcPlayerOptions(),
     );
     
@@ -103,62 +110,100 @@ class _FeedCardState extends State<FeedCard> {
   }
 
   void _listener() {
+    if (_isDisposed) return;
+    
     if (_vlcController?.value.isInitialized ?? false) {
       if (!_isInitialized) {
-        setState(() {
-          _isInitialized = true;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+            _isLoading = false;
+          });
+        }
       }
     }
   }
 
   void _togglePlay() async {
-    if (_vlcController == null) return;
+    if (!isVideo || _isDisposed) return;
+    
+    if (_vlcController == null) {
+      _initializeController();
+    }
     
     if (!_isInitialized) {
       setState(() {
         _isLoading = true;
       });
-      await _vlcController?.initialize();
-      setState(() {
-        _isInitialized = true;
-        _isLoading = false;
-        _isPlaying = true;
-      });
+      try {
+        await _vlcController?.initialize();
+        if (mounted && !_isDisposed) {
+          setState(() {
+            _isInitialized = true;
+            _isLoading = false;
+            _isPlaying = true;
+          });
+        }
+      } catch (e) {
+        print("Ошибка инициализации видео: $e");
+        if (mounted && !_isDisposed) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     } else {
-      if (_isPlaying) {
-        await _vlcController?.pause();
-        setState(() {
-          _isPlaying = false;
-        });
-      } else {
-        await _vlcController?.play();
-        setState(() {
-          _isPlaying = true;
-        });
+      try {
+        if (_isPlaying) {
+          await _vlcController?.pause();
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isPlaying = false;
+            });
+          }
+        } else {
+          await _vlcController?.play();
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isPlaying = true;
+            });
+          }
+        }
+      } catch (e) {
+        print("Ошибка переключения воспроизведения: $e");
       }
     }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
+    
+    // Удаляем слушатель
     _vlcController?.removeListener(_listener);
     
-    // Останавливаем воспроизведение вместо вызова stop()
-    if (_isPlaying) {
-      _vlcController?.pause();
+    // Останавливаем воспроизведение
+    if (_isPlaying && _vlcController != null) {
+      try {
+        _vlcController?.pause();
+      } catch (e) {
+        print("Ошибка при паузе: $e");
+      }
     }
     
     // Освобождаем ресурсы
-    _vlcController?.dispose();
+    try {
+      _vlcController?.dispose();
+    } catch (e) {
+      print("Ошибка при dispose: $e");
+    }
+    
+    _vlcController = null;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isVideo = _isVideoUrl(widget.item['url_feed'].toString());
-    
     return Card(
       margin: EdgeInsets.all(8),
       child: Column(
@@ -185,7 +230,9 @@ class _FeedCardState extends State<FeedCard> {
                             color: Colors.black,
                             child: Center(
                               child: _isLoading
-                                  ? CircularProgressIndicator()
+                                  ? CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    )
                                   : Icon(
                                       Icons.play_circle_filled,
                                       color: Colors.white,
@@ -194,8 +241,8 @@ class _FeedCardState extends State<FeedCard> {
                             ),
                           ),
                   ),
-                  // Показываем иконку play только если видео не играет
-                  if (!_isPlaying && _isInitialized)
+                  // Показываем иконку play только если видео не играет и не загружается
+                  if (!_isPlaying && !_isLoading && _isInitialized)
                     Positioned(
                       child: Container(
                         decoration: BoxDecoration(
@@ -209,15 +256,58 @@ class _FeedCardState extends State<FeedCard> {
                         ),
                       ),
                     ),
+                  // Показываем иконку pause если видео играет
+                  if (_isPlaying && _isInitialized)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.pause,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             )
           else
-            Image.network(
-              widget.item['url_feed'],
-              fit: BoxFit.cover,
+            // Для изображений используем простой Image.network без GestureDetector
+            Container(
               height: widget.height_n / 3,
               width: double.infinity,
+              child: Image.network(
+                widget.item['url_feed'],
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[200],
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 50,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           Padding(
             padding: EdgeInsets.all(8.0),
