@@ -75,6 +75,7 @@ class _FeedCardState extends State<FeedCard> {
   @override
   void initState() {
     super.initState();
+
     if (widget.item['url_feed'].toString().endsWith('.mp4') ||
         widget.item['url_feed'].toString().contains('http')) {
       _vlcController = VlcPlayerController.network(
@@ -84,11 +85,11 @@ class _FeedCardState extends State<FeedCard> {
         options: VlcPlayerOptions(),
       );
 
-      // слушатель для отслеживания ошибок
+      // Слушатель ошибок с проверкой mounted
       _listener = () {
         if (!mounted) return;
         if (_vlcController != null && _vlcController!.value.hasError) {
-          setState(() {});
+          setState(() {}); // Можно показать placeholder или текст ошибки
         }
       };
       _vlcController!.addListener(_listener);
@@ -99,8 +100,21 @@ class _FeedCardState extends State<FeedCard> {
   void dispose() {
     if (_vlcController != null) {
       _vlcController!.removeListener(_listener);
-      _vlcController!.stop();
-      _vlcController!.dispose();
+
+      // Стоп только если инициализирован
+      if (_vlcController!.value.isInitialized) {
+        try {
+          _vlcController!.stop();
+        } catch (e) {
+          print("Ошибка при stop(): $e");
+        }
+      }
+
+      try {
+        _vlcController!.dispose();
+      } catch (e) {
+        print("Ошибка при dispose(): $e");
+      }
     }
     super.dispose();
   }
