@@ -1,133 +1,103 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'dart:convert';
 import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 
-class FeedScreenWidget extends StatefulWidget {
-  @override
-  _FeedScreenWidgetState createState() => _FeedScreenWidgetState();
-}
-
-class _FeedScreenWidgetState extends State<FeedScreenWidget> {
-  var size_n, height_n, width_n;
-  List tableObjsJson = [];
-
-  Future<String> download() async {
-    try {
-      var request = await HttpClient().getUrl(
-          Uri.parse('https://anchih.e-rec.ru/api/feed/get_feed.php'));
-      var response = await request.close();
-
-      await for (var contents in response.transform(Utf8Decoder())) {
-        tableObjsJson = jsonDecode(contents) as List;
-      }
-    } catch (e) {
-      print("Ошибка загрузки: $e");
-    }
-
-    return Future.value("Data download");
-  }
+class CameraScreenWidget extends StatefulWidget {
+  const CameraScreenWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    size_n = MediaQuery.of(context).size;
-    height_n = size_n.height;
-    width_n = size_n.width;
-
-    return FutureBuilder<String>(
-      future: download(),
-      builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: Text('Идет загрузка...'));
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        } else {
-          return Scaffold(
-            appBar: AppBar(title: Text('Лента')),
-            body: ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: tableObjsJson.length,
-              itemBuilder: (BuildContext context, int index) {
-                var item = tableObjsJson[index];
-                return FeedCard(item: item, height_n: height_n);
-              },
-            ),
-          );
-        }
-      },
-    );
-  }
+  _CameraScreenWidgetState createState() => _CameraScreenWidgetState();
 }
 
-class FeedCard extends StatefulWidget {
-  final Map item;
-  final double height_n;
-  FeedCard({required this.item, required this.height_n});
+class _CameraScreenWidgetState extends State<CameraScreenWidget> {
+  bool _isPlaying = true;
+  bool _isError = false; // Новое состояние для отслеживания ошибок
 
-  @override
-  _FeedCardState createState() => _FeedCardState();
-}
+  final VlcPlayerController _videoPlayerController = VlcPlayerController.network(
+    //'rtsp://46.16.226.6:554/user=user&password=&channel=1&stream=0',
+    'http://46.16.226.6:8090',
+    //'http://media.w3.org/2010/05/bunny/movie.mp4',
+    hwAcc: HwAcc.full,
+    autoPlay: true,
+    options: VlcPlayerOptions(),
+  );
 
-class _FeedCardState extends State<FeedCard> {
-  VlcPlayerController? _vlcController;
+  Color _buttonColorPlay = Colors.green;
+  Color _buttonColorPause = Colors.black;
 
   @override
   void initState() {
     super.initState();
-    if (widget.item['url_feed'].toString().endsWith('.mp4') ||
-        widget.item['url_feed'].toString().contains('http')) {
-      _vlcController = VlcPlayerController.network(
-        widget.item['url_feed'],
-        hwAcc: HwAcc.FULL,
-        autoPlay: true,
-        options: VlcPlayerOptions(),
-      );
-    }
+    // Добавляем слушателя для отслеживания состояния потока
+    _videoPlayerController.addListener(() {
+      if (_videoPlayerController.value.hasError) {
+        setState(() {
+          _isError = true; // Устанавливаем состояние ошибки
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _vlcController?.stop();
-    _vlcController?.dispose();
+    _videoPlayerController.dispose();
     super.dispose();
+  }
+
+  void _playVideo() {
+    setState(() {
+      _isError = false; // Сбрасываем состояние ошибки при попытке воспроизведения
+      _buttonColorPlay = Colors.green;
+      _buttonColorPause = Colors.black;
+      _isPlaying = true;
+      _videoPlayerController.play();
+    });
+  }
+
+  void _pauseVideo() {
+    setState(() {
+      _buttonColorPause = Colors.green;
+      _buttonColorPlay = Colors.black;
+      _isPlaying = false;
+      _videoPlayerController.pause();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          widget.item['url_feed'].toString().endsWith('.mp4')
-              ? (_vlcController != null
-                  ? Container(
-                      height: widget.height_n / 3,
-                      child: VlcPlayer(
-                        controller: _vlcController!,
-                        aspectRatio: 16 / 9,
-                        placeholder: Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      height: widget.height_n / 3,
-                      child: Center(child: CircularProgressIndicator())))
-              : Image.network(
-                  widget.item['url_feed'],
-                  fit: BoxFit.cover,
-                  height: widget.height_n / 3,
-                  width: double.infinity,
+    return Scaffold(
+      appBar: AppBar(title: const Text('Камера')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isError) // Если есть ошибка, показываем сообщение
+              const Text(
+                'Ошибка загрузки видео',
+                style: TextStyle(color: Colors.red, fontSize: 20),
+              )
+            else
+              Center(
+                child: VlcPlayer(
+                  controller: _videoPlayerController,
+                  aspectRatio: 16 / 9,
+                  placeholder: const Center(child: CircularProgressIndicator()),
                 ),
-          Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Text(
-              widget.item['description'] ?? '',
-              style: TextStyle(fontSize: 14),
+              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: _isError ? null : _playVideo, // Деактивируем кнопку воспроизведения при ошибке
+                  child: Icon(Icons.play_arrow, size: 28, color: _buttonColorPlay),
+                ),
+                TextButton(
+                  onPressed: _isError ? null : _pauseVideo, // Деактивируем кнопку паузы при ошибке
+                  child: Icon(Icons.pause, size: 28, color: _buttonColorPause),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
