@@ -15,14 +15,15 @@ class _MessageWidgetState extends State<MessageWidget> {
   String deviceId = 'unknown';
   final TextEditingController _controller = TextEditingController();
   final String _key = 'my32lengthsupersecretnooneknows1'; // 32 байта
+
   List<String> messages = [];
   List<String> sender = [];
   List<String> created = [];
   final ScrollController _scrollController = ScrollController();
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
     getDeviceId();
     _fetchMessages();
   }
@@ -64,6 +65,8 @@ class _MessageWidgetState extends State<MessageWidget> {
         headers: {'Content-Type': 'application/json'},
       );
 
+      if (!mounted) return;
+
       setState(() {
         sender.add('вы');
         messages.add(message);
@@ -78,15 +81,17 @@ class _MessageWidgetState extends State<MessageWidget> {
 
   void _fetchMessages() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://anchih.e-rec.ru/api/get_messages.php'),
-      );
+      final response = await http
+          .get(Uri.parse('https://anchih.e-rec.ru/api/get_messages.php'));
+
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonMessages = json.decode(response.body);
 
         if (jsonMessages.isEmpty) {
           print('Сообщений нет');
+          setState(() {}); // чтобы Center("Нет сообщений") отобразился
           return;
         }
 
@@ -101,6 +106,8 @@ class _MessageWidgetState extends State<MessageWidget> {
 
           try {
             final decrypted = encrypter.decrypt64(encryptedMessage, iv: iv);
+
+            if (!mounted) return;
 
             setState(() {
               sender.add(senderIn == deviceId ? 'вы' : senderIn);
@@ -124,7 +131,8 @@ class _MessageWidgetState extends State<MessageWidget> {
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
+    if (!mounted) return;
+    if (_scrollController.hasClients && messages.isNotEmpty) {
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     }
   }
@@ -147,8 +155,8 @@ class _MessageWidgetState extends State<MessageWidget> {
                         child: ListTile(
                           title: Text(
                             sender[index],
-                            style:
-                                const TextStyle(fontSize: 10, color: Colors.blue),
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.blue),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
