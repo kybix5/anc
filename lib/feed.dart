@@ -70,83 +70,138 @@ class FeedCard extends StatefulWidget {
 
 class _FeedCardState extends State<FeedCard> {
   VlcPlayerController? _vlcController;
-  late VoidCallback _listener;
+  bool _isPlaying = false;
+  bool _isInitialized = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-
+    // Инициализируем контроллер, но не запускаем автоматически
     if (widget.item['url_feed'].toString().endsWith('.mp4') ||
         widget.item['url_feed'].toString().contains('http')) {
       _vlcController = VlcPlayerController.network(
         widget.item['url_feed'],
         hwAcc: HwAcc.FULL,
-        autoPlay: true,
+        autoPlay: false, // Изменено на false
         options: VlcPlayerOptions(),
       );
+      
+      // Слушаем изменения состояния контроллера
+      _vlcController?.addListener(_listener);
+    }
+  }
 
-      // Слушатель ошибок с проверкой mounted
-      _listener = () {
-        if (!mounted) return;
-        if (_vlcController != null && _vlcController!.value.hasError) {
-          setState(() {}); // Можно показать placeholder или текст ошибки
-        }
-      };
-      _vlcController!.addListener(_listener);
+  void _listener() {
+    if (_vlcController?.value.isInitialized ?? false) {
+      if (!_isInitialized) {
+        setState(() {
+          _isInitialized = true;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _togglePlay() async {
+    if (_vlcController == null) return;
+    
+    if (!_isInitialized) {
+      setState(() {
+        _isLoading = true;
+      });
+      await _vlcController?.initialize();
+      setState(() {
+        _isInitialized = true;
+        _isLoading = false;
+      });
+    }
+    
+    if (_isPlaying) {
+      await _vlcController?.pause();
+      setState(() {
+        _isPlaying = false;
+      });
+    } else {
+      await _vlcController?.play();
+      setState(() {
+        _isPlaying = true;
+      });
     }
   }
 
   @override
   void dispose() {
-    if (_vlcController != null) {
-      _vlcController!.removeListener(_listener);
-
-      // Стоп только если инициализирован
-      if (_vlcController!.value.isInitialized) {
-        try {
-          _vlcController!.stop();
-        } catch (e) {
-          print("Ошибка при stop(): $e");
-        }
-      }
-
-      try {
-        _vlcController!.dispose();
-      } catch (e) {
-        print("Ошибка при dispose(): $e");
-      }
-    }
+    _vlcController?.removeListener(_listener);
+    _vlcController?.stop();
+    _vlcController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isVideo = widget.item['url_feed'].toString().endsWith('.mp4') ||
+                  widget.item['url_feed'].toString().contains('.mp4');
+    
     return Card(
       margin: EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          widget.item['url_feed'].toString().endsWith('.mp4')
-              ? (_vlcController != null
-                  ? Container(
-                      height: widget.height_n / 3,
-                      child: VlcPlayer(
-                        controller: _vlcController!,
-                        aspectRatio: 16 / 9,
-                        placeholder: Center(
-                          child: CircularProgressIndicator(),
+          if (isVideo)
+            GestureDetector(
+              onTap: _togglePlay,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    height: widget.height_n / 3,
+                    color: Colors.black,
+                    child: (_vlcController != null && _isInitialized)
+                        ? VlcPlayer(
+                            controller: _vlcController!,
+                            aspectRatio: 16 / 9,
+                            placeholder: Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        : Container(
+                            color: Colors.black,
+                            child: Center(
+                              child: _isLoading
+                                  ? CircularProgressIndicator()
+                                  : Icon(
+                                      _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                                      color: Colors.white,
+                                      size: 50,
+                                    ),
+                            ),
+                          ),
+                  ),
+                  if (!_isPlaying && !_isLoading && _isInitialized)
+                    Positioned(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 50,
                         ),
                       ),
-                    )
-                  : Container(
-                      height: widget.height_n / 3,
-                      child: Center(child: CircularProgressIndicator())))
-              : Image.network(
-                  widget.item['url_feed'],
-                  fit: BoxFit.cover,
-                  height: widget.height_n / 3,
-                  width: double.infinity,
-                ),
+                    ),
+                ],
+              ),
+            )
+          else
+            Image.network(
+              widget.item['url_feed'],
+              fit: BoxFit.cover,
+              height: widget.height_n / 3,
+              width: double.infinity,
+            ),
           Padding(
             padding: EdgeInsets.all(8.0),
             child: Text(
