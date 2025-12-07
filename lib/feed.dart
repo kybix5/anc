@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:video_player/video_player.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 
 class FeedScreenWidget extends StatefulWidget {
   @override
@@ -69,24 +69,26 @@ class FeedCard extends StatefulWidget {
 }
 
 class _FeedCardState extends State<FeedCard> {
-  VideoPlayerController? _controller;
+  VlcPlayerController? _vlcController;
 
   @override
   void initState() {
     super.initState();
-    if (widget.item['url_feed'].toString().endsWith('.mp4')) {
-      _controller = VideoPlayerController.network(widget.item['url_feed'])
-        ..initialize().then((_) {
-          setState(() {});
-          _controller!.setLooping(true);
-          _controller!.play();
-        });
+    if (widget.item['url_feed'].toString().endsWith('.mp4') ||
+        widget.item['url_feed'].toString().contains('http')) {
+      _vlcController = VlcPlayerController.network(
+        widget.item['url_feed'],
+        hwAcc: HwAcc.FULL,
+        autoPlay: true,
+        options: VlcPlayerOptions(),
+      );
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _vlcController?.stop();
+    _vlcController?.dispose();
     super.dispose();
   }
 
@@ -98,10 +100,16 @@ class _FeedCardState extends State<FeedCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           widget.item['url_feed'].toString().endsWith('.mp4')
-              ? (_controller != null && _controller!.value.isInitialized
-                  ? AspectRatio(
-                      aspectRatio: _controller!.value.aspectRatio,
-                      child: VideoPlayer(_controller!),
+              ? (_vlcController != null
+                  ? Container(
+                      height: widget.height_n / 3,
+                      child: VlcPlayer(
+                        controller: _vlcController!,
+                        aspectRatio: 16 / 9,
+                        placeholder: Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
                     )
                   : Container(
                       height: widget.height_n / 3,
