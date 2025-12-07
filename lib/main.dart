@@ -4,6 +4,7 @@ import 'home.dart';
 import 'tree.dart';
 import 'vlc.dart';
 import 'news.dart';
+import 'feed.dart';
 import 'weather.dart';
 import 'massege.dart';
 import 'profile.dart';
@@ -60,6 +61,7 @@ class _BottomNavExampleState extends State<BottomNavExample> {
       CameraScreenWidget(),
       TreeScreenWidget(),
       NewsScreenWidget(),
+      FeedScreenWidget(),
       WeatherScreenWidget(),
       MessageWidget(),
       ProfileSettings(),
@@ -162,6 +164,11 @@ class _BottomNavExampleState extends State<BottomNavExample> {
             icon: Icon(Icons.fiber_new_sharp),
             backgroundColor: Colors.green,
             label: 'Новости',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.fiber_new_sharp),
+            backgroundColor: Colors.green,
+            label: 'feed',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.cloud_queue_outlined),
