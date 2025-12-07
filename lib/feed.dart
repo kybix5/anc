@@ -74,25 +74,28 @@ class _FeedCardState extends State<FeedCard> {
   bool _isInitialized = false;
   bool _isLoading = false;
   bool _isDisposed = false;
+  bool _hasError = false;
 
   bool get isVideo {
     final url = widget.item['url_feed'].toString().toLowerCase();
+    // Более точная проверка видео файлов
     return url.endsWith('.mp4') || 
            url.contains('.mp4?') || 
-           url.contains('.mov') ||
-           url.contains('.avi') ||
-           url.contains('.wmv') ||
-           url.contains('.flv') ||
-           url.contains('.webm') ||
-           url.contains('/video/');
+           url.endsWith('.mov') ||
+           url.endsWith('.avi') ||
+           url.endsWith('.wmv') ||
+           url.endsWith('.flv') ||
+           url.endsWith('.webm') ||
+           url.contains('video') && (url.contains('mp4') || url.contains('mov'));
   }
 
   @override
   void initState() {
     super.initState();
     _isDisposed = false;
+    _hasError = false;
     
-    // Создаем контроллер только для видео, но не инициализируем сразу
+    // Только создаем контроллер, НЕ инициализируем сразу
     if (isVideo) {
       _createController();
     }
@@ -103,28 +106,55 @@ class _FeedCardState extends State<FeedCard> {
       _vlcController = VlcPlayerController.network(
         widget.item['url_feed'],
         autoPlay: false,
-        options: VlcPlayerOptions(),
+        options: VlcPlayerOptions(
+          // Добавляем дополнительные опции для стабильности
+          advanced: VlcAdvancedOptions([
+            VlcAdvancedOptions.networkCaching(3000),
+            VlcAdvancedOptions.liveCaching(3000),
+          ]),
+        ),
       );
       
-      // Слушаем изменения состояния контроллера
-      _vlcController?.addListener(_listener);
+      // Обработчик событий
+      _vlcController?.addListener(_videoListener);
     } catch (e) {
-      print("Ошибка создания контроллера: $e");
+      print("Ошибка создания контроллера VLC: $e");
       _vlcController = null;
+      _hasError = true;
     }
   }
 
-  void _listener() {
+  void _videoListener() {
     if (_isDisposed || !mounted) return;
     
     final controller = _vlcController;
-    if (controller != null && controller.value.isInitialized) {
-      if (!_isInitialized) {
+    if (controller == null) return;
+    
+    // Проверяем инициализацию
+    if (controller.value.isInitialized && !_isInitialized) {
+      if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !_isDisposed) {
             setState(() {
               _isInitialized = true;
               _isLoading = false;
+              _hasError = false;
+            });
+          }
+        });
+      }
+    }
+    
+    // Проверяем ошибки
+    if (controller.value.hasError) {
+      print("Ошибка видео: ${controller.value.errorMessage}");
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _hasError = true;
+              _isLoading = false;
+              _isPlaying = false;
             });
           }
         });
@@ -133,22 +163,28 @@ class _FeedCardState extends State<FeedCard> {
   }
 
   Future<void> _initializeVideo() async {
-    if (!isVideo || _isDisposed || !mounted) return;
+    if (!isVideo || _isDisposed || !mounted || _hasError) return;
     
     if (_vlcController == null) {
       _createController();
+      if (_vlcController == null) {
+        setState(() {
+          _hasError = true;
+        });
+        return;
+      }
     }
     
-    if (_vlcController == null) return;
-    
     if (!_isInitialized) {
-      if (mounted) {
-        setState(() {
-          _isLoading = true;
-        });
-      }
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
       
       try {
+        // Задержка для стабильности инициализации
+        await Future.delayed(Duration(milliseconds: 100));
+        
         await _vlcController!.initialize();
         
         if (mounted && !_isDisposed) {
@@ -156,15 +192,24 @@ class _FeedCardState extends State<FeedCard> {
             _isInitialized = true;
             _isLoading = false;
             _isPlaying = true;
+            _hasError = false;
           });
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
         print("Ошибка инициализации видео: $e");
+        print("Stack trace: $stackTrace");
+        
         if (mounted && !_isDisposed) {
           setState(() {
+            _hasError = true;
             _isLoading = false;
+            _isPlaying = false;
           });
         }
+        
+        // Пробуем пересоздать контроллер
+        _disposeController();
+        _createController();
       }
     }
   }
@@ -172,10 +217,23 @@ class _FeedCardState extends State<FeedCard> {
   void _togglePlay() async {
     if (!isVideo || _isDisposed || !mounted) return;
     
+    if (_hasError) {
+      // Пробуем сбросить ошибку и начать заново
+      _disposeController();
+      _createController();
+      setState(() {
+        _hasError = false;
+        _isInitialized = false;
+        _isPlaying = false;
+      });
+    }
+    
     if (!_isInitialized) {
       await _initializeVideo();
       return;
     }
+    
+    if (_vlcController == null) return;
     
     try {
       if (_isPlaying) {
@@ -186,42 +244,31 @@ class _FeedCardState extends State<FeedCard> {
           });
         }
       } else {
-        await _vlcController?.play();
-        if (mounted && !_isDisposed) {
-          setState(() {
-            _isPlaying = true;
-          });
+        // Проверяем, что видео готово к воспроизведению
+        if (_vlcController!.value.isInitialized && !_vlcController!.value.hasError) {
+          await _vlcController?.play();
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isPlaying = true;
+            });
+          }
+        } else {
+          // Если есть проблема, переинициализируем
+          await _initializeVideo();
         }
       }
     } catch (e) {
       print("Ошибка переключения воспроизведения: $e");
-    }
-  }
-
-  @override
-  void didUpdateWidget(FeedCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    
-    // Если URL изменился, пересоздаем контроллер
-    if (oldWidget.item['url_feed'] != widget.item['url_feed']) {
-      if (_vlcController != null) {
-        _disposeController();
-      }
-      if (isVideo) {
-        _createController();
-        setState(() {
-          _isInitialized = false;
-          _isPlaying = false;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _hasError = true;
+      });
     }
   }
 
   void _disposeController() {
     if (_vlcController != null) {
       try {
-        _vlcController?.removeListener(_listener);
+        _vlcController?.removeListener(_videoListener);
         if (_isPlaying) {
           _vlcController?.pause();
         }
@@ -256,8 +303,8 @@ class _FeedCardState extends State<FeedCard> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Видео плеер
-                    if (_isInitialized && _vlcController != null)
+                    // Видео плеер (только если инициализирован и нет ошибки)
+                    if (_isInitialized && _vlcController != null && !_hasError)
                       VlcPlayer(
                         controller: _vlcController!,
                         aspectRatio: 16 / 9,
@@ -271,25 +318,64 @@ class _FeedCardState extends State<FeedCard> {
                         ),
                       ),
                     
-                    // Превью или иконка загрузки
-                    if (!_isInitialized || _isLoading)
+                    // Состояние загрузки
+                    if (_isLoading)
                       Container(
                         color: Colors.black,
                         child: Center(
-                          child: _isLoading
-                              ? CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                )
-                              : Icon(
-                                  Icons.play_circle_filled,
-                                  color: Colors.white,
-                                  size: 50,
-                                ),
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
                         ),
                       ),
                     
-                    // Иконка play поверх видео (когда видео пауза)
-                    if (_isInitialized && !_isPlaying && !_isLoading)
+                    // Состояние ошибки
+                    if (_hasError)
+                      Container(
+                        color: Colors.black,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Ошибка загрузки видео',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: _togglePlay,
+                                child: Text('Попробовать снова'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    
+                    // Иконка play (если не инициализировано, нет ошибки и не загружается)
+                    if (!_isInitialized && !_isLoading && !_hasError)
+                      Container(
+                        color: Colors.black,
+                        child: Center(
+                          child: Icon(
+                            Icons.play_circle_filled,
+                            color: Colors.white,
+                            size: 50,
+                          ),
+                        ),
+                      ),
+                    
+                    // Иконка play поверх видео (когда видео на паузе)
+                    if (_isInitialized && !_isPlaying && !_isLoading && !_hasError)
                       Positioned(
                         child: Container(
                           decoration: BoxDecoration(
@@ -305,7 +391,7 @@ class _FeedCardState extends State<FeedCard> {
                       ),
                     
                     // Иконка pause (когда видео играет)
-                    if (_isInitialized && _isPlaying && !_isLoading)
+                    if (_isInitialized && _isPlaying && !_isLoading && !_hasError)
                       Positioned(
                         top: 10,
                         right: 10,
