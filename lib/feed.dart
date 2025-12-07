@@ -43,7 +43,7 @@ class _FeedScreenWidgetState extends State<FeedScreenWidget> {
           return Center(child: Text('Error: ${snapshot.error}'));
         } else {
           return Scaffold(
-            appBar: AppBar(title: Text('Лента1')),
+            appBar: AppBar(title: Text('Лента')),
             body: ListView.builder(
               padding: const EdgeInsets.all(8),
               itemCount: tableObjsJson.length,
@@ -70,6 +70,7 @@ class FeedCard extends StatefulWidget {
 
 class _FeedCardState extends State<FeedCard> {
   VlcPlayerController? _vlcController;
+  late VoidCallback _listener;
 
   @override
   void initState() {
@@ -82,13 +83,25 @@ class _FeedCardState extends State<FeedCard> {
         autoPlay: true,
         options: VlcPlayerOptions(),
       );
+
+      // слушатель для отслеживания ошибок
+      _listener = () {
+        if (!mounted) return;
+        if (_vlcController != null && _vlcController!.value.hasError) {
+          setState(() {});
+        }
+      };
+      _vlcController!.addListener(_listener);
     }
   }
 
   @override
   void dispose() {
-    _vlcController?.stop();
-    _vlcController?.dispose();
+    if (_vlcController != null) {
+      _vlcController!.removeListener(_listener);
+      _vlcController!.stop();
+      _vlcController!.dispose();
+    }
     super.dispose();
   }
 
