@@ -80,7 +80,7 @@ class _FeedCardState extends State<FeedCard> {
         widget.item['url_feed'].toString().contains('http')) {
       _vlcController = VlcPlayerController.network(
         widget.item['url_feed'],
-        hwAcc: HwAcc.FULL,
+        //hwAcc: HwAcc.FULL,
         autoPlay: true,
         options: VlcPlayerOptions(),
       );
