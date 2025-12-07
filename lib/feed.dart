@@ -69,7 +69,7 @@ class FeedCard extends StatefulWidget {
 }
 
 class _FeedCardState extends State<FeedCard> {
-  late VlcPlayerController? _vlcController;
+  VlcPlayerController? _vlcController;
   bool _isPlaying = false;
   bool _isInitialized = false;
   bool _isLoading = false;
@@ -92,51 +92,65 @@ class _FeedCardState extends State<FeedCard> {
     super.initState();
     _isDisposed = false;
     
-    // Инициализируем контроллер только для видео, но не запускаем автоматически
+    // Создаем контроллер только для видео, но не инициализируем сразу
     if (isVideo) {
-      _initializeController();
+      _createController();
     }
   }
 
-  void _initializeController() {
-    _vlcController = VlcPlayerController.network(
-      widget.item['url_feed'],
-      autoPlay: false,
-      options: VlcPlayerOptions(),
-    );
-    
-    // Слушаем изменения состояния контроллера
-    _vlcController?.addListener(_listener);
+  void _createController() {
+    try {
+      _vlcController = VlcPlayerController.network(
+        widget.item['url_feed'],
+        autoPlay: false,
+        options: VlcPlayerOptions(),
+      );
+      
+      // Слушаем изменения состояния контроллера
+      _vlcController?.addListener(_listener);
+    } catch (e) {
+      print("Ошибка создания контроллера: $e");
+      _vlcController = null;
+    }
   }
 
   void _listener() {
-    if (_isDisposed) return;
+    if (_isDisposed || !mounted) return;
     
-    if (_vlcController?.value.isInitialized ?? false) {
+    final controller = _vlcController;
+    if (controller != null && controller.value.isInitialized) {
       if (!_isInitialized) {
-        if (mounted) {
-          setState(() {
-            _isInitialized = true;
-            _isLoading = false;
-          });
-        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isInitialized = true;
+              _isLoading = false;
+            });
+          }
+        });
       }
     }
   }
 
-  void _togglePlay() async {
-    if (!isVideo || _isDisposed) return;
+  Future<void> _initializeVideo() async {
+    if (!isVideo || _isDisposed || !mounted) return;
     
     if (_vlcController == null) {
-      _initializeController();
+      _createController();
     }
     
+    if (_vlcController == null) return;
+    
     if (!_isInitialized) {
-      setState(() {
-        _isLoading = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+      
       try {
-        await _vlcController?.initialize();
+        await _vlcController!.initialize();
+        
         if (mounted && !_isDisposed) {
           setState(() {
             _isInitialized = true;
@@ -152,53 +166,77 @@ class _FeedCardState extends State<FeedCard> {
           });
         }
       }
-    } else {
-      try {
-        if (_isPlaying) {
-          await _vlcController?.pause();
-          if (mounted && !_isDisposed) {
-            setState(() {
-              _isPlaying = false;
-            });
-          }
-        } else {
-          await _vlcController?.play();
-          if (mounted && !_isDisposed) {
-            setState(() {
-              _isPlaying = true;
-            });
-          }
+    }
+  }
+
+  void _togglePlay() async {
+    if (!isVideo || _isDisposed || !mounted) return;
+    
+    if (!_isInitialized) {
+      await _initializeVideo();
+      return;
+    }
+    
+    try {
+      if (_isPlaying) {
+        await _vlcController?.pause();
+        if (mounted && !_isDisposed) {
+          setState(() {
+            _isPlaying = false;
+          });
         }
-      } catch (e) {
-        print("Ошибка переключения воспроизведения: $e");
+      } else {
+        await _vlcController?.play();
+        if (mounted && !_isDisposed) {
+          setState(() {
+            _isPlaying = true;
+          });
+        }
       }
+    } catch (e) {
+      print("Ошибка переключения воспроизведения: $e");
+    }
+  }
+
+  @override
+  void didUpdateWidget(FeedCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Если URL изменился, пересоздаем контроллер
+    if (oldWidget.item['url_feed'] != widget.item['url_feed']) {
+      if (_vlcController != null) {
+        _disposeController();
+      }
+      if (isVideo) {
+        _createController();
+        setState(() {
+          _isInitialized = false;
+          _isPlaying = false;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _disposeController() {
+    if (_vlcController != null) {
+      try {
+        _vlcController?.removeListener(_listener);
+        if (_isPlaying) {
+          _vlcController?.pause();
+        }
+        _vlcController?.dispose();
+      } catch (e) {
+        print("Ошибка при dispose контроллера: $e");
+      }
+      _vlcController = null;
     }
   }
 
   @override
   void dispose() {
     _isDisposed = true;
-    
-    // Удаляем слушатель
-    _vlcController?.removeListener(_listener);
-    
-    // Останавливаем воспроизведение
-    if (_isPlaying && _vlcController != null) {
-      try {
-        _vlcController?.pause();
-      } catch (e) {
-        print("Ошибка при паузе: $e");
-      }
-    }
-    
-    // Освобождаем ресурсы
-    try {
-      _vlcController?.dispose();
-    } catch (e) {
-      print("Ошибка при dispose: $e");
-    }
-    
-    _vlcController = null;
+    _disposeController();
     super.dispose();
   }
 
@@ -212,73 +250,84 @@ class _FeedCardState extends State<FeedCard> {
           if (isVideo)
             GestureDetector(
               onTap: _togglePlay,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    height: widget.height_n / 3,
-                    color: Colors.black,
-                    child: (_vlcController != null && _isInitialized)
-                        ? VlcPlayer(
-                            controller: _vlcController!,
-                            aspectRatio: 16 / 9,
-                            placeholder: Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        : Container(
-                            color: Colors.black,
-                            child: Center(
-                              child: _isLoading
-                                  ? CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    )
-                                  : Icon(
-                                      Icons.play_circle_filled,
-                                      color: Colors.white,
-                                      size: 50,
-                                    ),
+              child: Container(
+                height: widget.height_n / 3,
+                color: Colors.black,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Видео плеер
+                    if (_isInitialized && _vlcController != null)
+                      VlcPlayer(
+                        controller: _vlcController!,
+                        aspectRatio: 16 / 9,
+                        placeholder: Container(
+                          color: Colors.black,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           ),
-                  ),
-                  // Показываем иконку play только если видео не играет и не загружается
-                  if (!_isPlaying && !_isLoading && _isInitialized)
-                    Positioned(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.play_arrow,
-                          color: Colors.white,
-                          size: 50,
                         ),
                       ),
-                    ),
-                  // Показываем иконку pause если видео играет
-                  if (_isPlaying && _isInitialized)
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        padding: EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.pause,
-                          color: Colors.white,
-                          size: 24,
+                    
+                    // Превью или иконка загрузки
+                    if (!_isInitialized || _isLoading)
+                      Container(
+                        color: Colors.black,
+                        child: Center(
+                          child: _isLoading
+                              ? CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                )
+                              : Icon(
+                                  Icons.play_circle_filled,
+                                  color: Colors.white,
+                                  size: 50,
+                                ),
                         ),
                       ),
-                    ),
-                ],
+                    
+                    // Иконка play поверх видео (когда видео пауза)
+                    if (_isInitialized && !_isPlaying && !_isLoading)
+                      Positioned(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 50,
+                          ),
+                        ),
+                      ),
+                    
+                    // Иконка pause (когда видео играет)
+                    if (_isInitialized && _isPlaying && !_isLoading)
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.pause,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             )
           else
-            // Для изображений используем простой Image.network без GestureDetector
+            // Для изображений
             Container(
               height: widget.height_n / 3,
               width: double.infinity,
