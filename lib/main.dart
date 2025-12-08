@@ -40,7 +40,7 @@ class _BottomNavExampleState extends State<BottomNavExample> {
   void _onTabChanged(int index) {
     setState(() {
       _currentNavigator = index; // Обновляем индекс выбранной вкладки
-      if (index == 6) {
+      if (index == 7) {
         _currentIndex = 0; // Сбрасываем текущий индекс на 0
 
         Navigator.pop(context); // Закрыть Drawer
@@ -105,7 +105,7 @@ class _BottomNavExampleState extends State<BottomNavExample> {
             child: ListTile(
               leading: const Icon(Icons.settings),
               onTap: () {
-                _onTabChanged(6);
+                _onTabChanged(7);
               },
               title: Text(
                 'S E T T I N G S',
