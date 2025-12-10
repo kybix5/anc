@@ -213,7 +213,7 @@ class _HomeScreenWidgetState extends State<HomeScreenWidget> {
                       children: [
                         InkWell(
                           onTap: () {
-                            onTabChanged(4);
+                            onTabChanged(5);
                           },
                           child: Column(
                             children: [
