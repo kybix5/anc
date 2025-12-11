@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 class ProfileSettings extends StatefulWidget {
@@ -24,23 +23,22 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   String? _imageUrl;
   File? _image;
 
-  bool isLoading = true; // ← важно!
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initProfile();   // ← единственная точка входа
+    _loadProfile();
   }
 
-  Future<void> _initProfile() async {
-    await getDeviceId();
-    await _loadLocalCache();
+  Future<void> _loadProfile() async {
+    await _getDeviceId();
     await _fetchProfileData();
     setState(() => isLoading = false);
   }
 
   // ---------- Получение deviceId ----------
-  Future<void> getDeviceId() async {
+  Future<void> _getDeviceId() async {
     DeviceInfoPlugin info = DeviceInfoPlugin();
 
     if (Platform.isAndroid) {
@@ -52,32 +50,12 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     }
   }
 
-  // ---------- Локальный кэш 1----------
-  Future<void> _loadLocalCache() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    firstNameController.text = prefs.getString("first_name") ?? "";
-    lastNameController.text = prefs.getString("last_name") ?? "";
-    emailController.text = prefs.getString("email") ?? "";
-    usernameController.text = prefs.getString("username") ?? "";
-    _imageUrl = prefs.getString("photo");
-  }
-
-  Future<void> _saveLocalCache(Map<String, dynamic> data) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString("first_name", data['first_name'] ?? "");
-    await prefs.setString("last_name", data['last_name'] ?? "");
-    await prefs.setString("email", data['email'] ?? "");
-    await prefs.setString("username", data['username'] ?? "");
-    if (data['photo'] != null) {
-      await prefs.setString("photo", data['photo']);
-    }
-  }
-
-  // ---------- Загрузка профиля с API ----------
+  // ---------- Загрузка профиля через API ----------
   Future<void> _fetchProfileData() async {
-    if (deviceId == "unknown") return;
+    if (deviceId == "unknown") {
+      _setTestData();
+      return;
+    }
 
     try {
       final encodedId = Uri.encodeComponent(deviceId.trim());
@@ -88,18 +66,69 @@ class _ProfileSettingsState extends State<ProfileSettings> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
+        // Проверка формата
         if (data is Map<String, dynamic>) {
-          firstNameController.text = data['first_name'] ?? "";
-          lastNameController.text = data['last_name'] ?? "";
-          emailController.text = data['email'] ?? "";
-          usernameController.text = data['username'] ?? "";
-          _imageUrl = data['photo'];
-
-          await _saveLocalCache(data);
+          _applyProfileFromApi(data);
+          return;
         }
       }
+
+      // Если сервер вернул что-то странное → тестовые данные
+      _setTestData();
+
     } catch (e) {
-      print("Ошибка запроса: $e");
+      print("Ошибка API: $e");
+      _setTestData();
+    }
+  }
+
+  // ---------- Установка данных из API ----------
+  void _applyProfileFromApi(Map<String, dynamic> data) {
+    firstNameController.text = data['first_name'] ?? "";
+    lastNameController.text = data['last_name'] ?? "";
+    emailController.text = data['email'] ?? "";
+    usernameController.text = data['username'] ?? "";
+    _imageUrl = data['photo'];
+  }
+
+  // ---------- Тестовые данные при ошибке ----------
+  void _setTestData() {
+    firstNameController.text = "Иван";
+    lastNameController.text = "Иванов";
+    emailController.text = "test@example.com";
+    usernameController.text = "testuser";
+    _imageUrl = null;
+  }
+
+  // ---------- Отправка формы ----------
+  Future<void> _submitSettings() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('https://anchih.e-rec.ru/api/profile/update_profile'));
+
+    request.fields['username'] = usernameController.text;
+    request.fields['email'] = emailController.text;
+    request.fields['first_name'] = firstNameController.text;
+    request.fields['last_name'] = lastNameController.text;
+
+    if (_image != null) {
+      request.files.add(await http.MultipartFile.fromPath("photo", _image!.path));
+    }
+
+    try {
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Настройки обновлены")));
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Ошибка сервера")));
+      }
+    } catch (e) {
+      print("Ошибка отправки: $e");
     }
   }
 
@@ -157,7 +186,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
               SizedBox(height: 20),
               ElevatedButton(
                 child: Text("Сохранить"),
-                onPressed: () {},
+                onPressed: _submitSettings,
               )
             ],
           ),
