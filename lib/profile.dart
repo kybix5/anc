@@ -24,47 +24,43 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   String? _imageUrl;
   File? _image;
 
+  bool isLoading = true; // ← важно!
+
   @override
   void initState() {
     super.initState();
-    _loadLocalCache();        // ← Загружаем локальные данные
-    getDeviceId();
+    _initProfile();   // ← единственная точка входа
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    getDeviceId();
-    _fetchProfileData();
+  Future<void> _initProfile() async {
+    await getDeviceId();
+    await _loadLocalCache();
+    await _fetchProfileData();
+    setState(() => isLoading = false);
   }
 
-  // ========== Получение deviceId ==========
+  // ---------- Получение deviceId ----------
   Future<void> getDeviceId() async {
-    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    DeviceInfoPlugin info = DeviceInfoPlugin();
 
     if (Platform.isAndroid) {
-      AndroidDeviceInfo info = await deviceInfo.androidInfo;
-      deviceId = info.id;
+      AndroidDeviceInfo android = await info.androidInfo;
+      deviceId = android.id;
     } else if (Platform.isIOS) {
-      IosDeviceInfo info = await deviceInfo.iosInfo;
-      deviceId = info.identifierForVendor ?? "unknown";
+      IosDeviceInfo ios = await info.iosInfo;
+      deviceId = ios.identifierForVendor ?? "unknown";
     }
-
-    print("Device ID = $deviceId");
   }
 
-  // ========== Локальный кэш ==========
+  // ---------- Локальный кэш ----------
   Future<void> _loadLocalCache() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    // Загружаем данные в поля
     firstNameController.text = prefs.getString("first_name") ?? "";
     lastNameController.text = prefs.getString("last_name") ?? "";
     emailController.text = prefs.getString("email") ?? "";
     usernameController.text = prefs.getString("username") ?? "";
     _imageUrl = prefs.getString("photo");
-
-    setState(() {});
   }
 
   Future<void> _saveLocalCache(Map<String, dynamic> data) async {
@@ -79,7 +75,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     }
   }
 
-  // ========== Загрузка профиля с API ==========
+  // ---------- Загрузка профиля с API ----------
   Future<void> _fetchProfileData() async {
     if (deviceId == "unknown") return;
 
@@ -89,129 +85,80 @@ class _ProfileSettingsState extends State<ProfileSettings> {
 
       final response = await http.get(Uri.parse(url));
 
-      print("Ответ сервера: ${response.body}");
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
         if (data is Map<String, dynamic>) {
-          // Заполняем поля
           firstNameController.text = data['first_name'] ?? "";
           lastNameController.text = data['last_name'] ?? "";
           emailController.text = data['email'] ?? "";
           usernameController.text = data['username'] ?? "";
           _imageUrl = data['photo'];
 
-          // Сохраняем локально
           await _saveLocalCache(data);
-
-          setState(() {});
         }
       }
     } catch (e) {
-      print("Ошибка загрузки данных: $e");
+      print("Ошибка запроса: $e");
     }
   }
 
-  // ========== Выбор изображения ==========
-  Future<void> _pickImage() async {
-    // TODO: подключить image_picker
-  }
-
-  // ========== Отправка изменений ==========
-  Future<void> _submitSettings() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('https://anchih.e-rec.ru/api/profile/update_profile'));
-
-    request.fields['username'] = usernameController.text;
-    request.fields['email'] = emailController.text;
-    request.fields['first_name'] = firstNameController.text;
-    request.fields['last_name'] = lastNameController.text;
-
-    if (_image != null) {
-      request.files.add(await http.MultipartFile.fromPath("photo", _image!.path));
-    }
-
-    try {
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Настройки обновлены")));
-
-        // сохраняем в кэш
-        _saveLocalCache({
-          "username": usernameController.text,
-          "email": emailController.text,
-          "first_name": firstNameController.text,
-          "last_name": lastNameController.text,
-          "photo": _imageUrl
-        });
-      } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Ошибка сервера")));
-      }
-    } catch (e) {
-      print("Ошибка: $e");
-    }
-  }
-
-  // ========== UI ==========
+  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text("Настройки профиля")),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text("Настройки профиля")),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              GestureDetector(
-                onTap: _pickImage,
-                child: CircleAvatar(
-                  radius: 80,
-                  backgroundImage: _image != null
-                      ? FileImage(_image!)
-                      : _imageUrl != null
-                          ? NetworkImage(_imageUrl!)
-                          : null,
-                  child: (_image == null && _imageUrl == null)
-                      ? Icon(Icons.camera_alt, size: 50)
-                      : null,
-                ),
+              CircleAvatar(
+                radius: 80,
+                backgroundImage: _image != null
+                    ? FileImage(_image!)
+                    : _imageUrl != null
+                        ? NetworkImage(_imageUrl!)
+                        : null,
+                child: (_image == null && _imageUrl == null)
+                    ? Icon(Icons.camera_alt, size: 50)
+                    : null,
               ),
               SizedBox(height: 20),
 
               TextFormField(
                 controller: firstNameController,
                 decoration: InputDecoration(labelText: "Имя"),
-                validator: (v) => v!.isEmpty ? "Введите имя" : null,
               ),
+
               TextFormField(
                 controller: lastNameController,
                 decoration: InputDecoration(labelText: "Фамилия"),
-                validator: (v) => v!.isEmpty ? "Введите фамилию" : null,
               ),
+
               TextFormField(
                 controller: emailController,
                 decoration: InputDecoration(labelText: "Email"),
-                validator: (v) => v!.isEmpty ? "Введите email" : null,
               ),
+
               TextFormField(
                 controller: usernameController,
                 decoration: InputDecoration(labelText: "Имя пользователя"),
-                validator: (v) => v!.isEmpty ? "Введите имя пользователя" : null,
               ),
 
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _submitSettings,
-                child: Text("Сохранить изменения"),
-              ),
+                child: Text("Сохранить"),
+                onPressed: () {},
+              )
             ],
           ),
         ),
