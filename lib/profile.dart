@@ -57,31 +57,54 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     //_fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
   }
 
-  Future<void> _fetchProfileData() async {
-    try {
-      final response = await http.get(Uri.parse(
-          'https://anchih.e-rec.ru/api/profile/?id=$deviceId')); // Замените на ваш URL
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _username = data['username'];
-          _email = data['email'];
-          _firstName = data['first_name'];
-          _lastName = data['last_name'];
-          _imageUrl = data[
-              'photo']; // Предполагается, что URL изображения возвращается в ответе
-        });
-      } else {
+Future<void> _fetchProfileData() async {
+  if (deviceId == 'unknown' || deviceId.trim().isEmpty) {
+    print('Device ID не готов');
+    return;
+  }
+
+  try {
+    final encodedId = Uri.encodeComponent(deviceId.trim());
+    final url = 'https://anchih.e-rec.ru/api/profile/?id=$encodedId';
+    final response = await http.get(Uri.parse(url));
+
+    print('Ответ сервера: ${response.body}'); // ← смотрим СЮДА
+
+    if (response.statusCode == 200) {
+      final dynamic data = json.decode(response.body);
+
+      // Проверяем, не ошибка ли пришла
+      if (data is Map<String, dynamic> && data.containsKey('error')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка получения данных профиля')),
+          SnackBar(content: Text('Ошибка: ${data['error']}')),
         );
+        return;
       }
-    } catch (e) {
+
+      // Убеждаемся, что data — это Map
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Неверный формат данных');
+      }
+
+      setState(() {
+        _username = data['username'] ?? '';
+        _email = data['email'] ?? '';
+        _firstName = data['first_name'] ?? '';
+        _lastName = data['last_name'] ?? '';
+        _imageUrl = data['photo'] ?? null;
+      });
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Произошла ошибка: $e')),
+        SnackBar(content: Text('Сервер вернул статус: ${response.statusCode}')),
       );
     }
+  } catch (e) {
+    print('Ошибка парсинга JSON: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Не удалось обработать данные: $e')),
+    );
   }
+}
 
   Future<void> _pickImage() async {
     //final picker = ImagePicker();
