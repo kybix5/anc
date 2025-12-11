@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-//import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 class ProfileSettings extends StatefulWidget {
@@ -12,159 +12,160 @@ class ProfileSettings extends StatefulWidget {
 
 class _ProfileSettingsState extends State<ProfileSettings> {
   final _formKey = GlobalKey<FormState>();
-  String _username = '';
-  String _email = '';
-  String _firstName = '';
-  String _lastName = '';
 
-  String deviceId = 'unknown';
+  // Контроллеры
+  final firstNameController = TextEditingController();
+  final lastNameController = TextEditingController();
+  final emailController = TextEditingController();
+  final usernameController = TextEditingController();
 
-  String? _imageUrl =
-      'https://anchih.e-rec.ru/api/jpg/photo.jpeg'; // Переменная для хранения URL изображения
-  File? _image; // Переменная для хранения локального изображения
+  String deviceId = "unknown";
 
-  Future getDeviceId() async {
-    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    //String? deviceId;
+  String? _imageUrl;
+  File? _image;
 
-    // Получаем информацию о платформе
-    if (Theme.of(context).platform == TargetPlatform.android) {
-      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      String dev = androidInfo.toString();
-      //print(dev);
-      deviceId = androidInfo.id;
-      // Уникальный идентификатор для Android
-    } else if (Theme.of(context).platform == TargetPlatform.iOS) {
-      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-      deviceId = iosInfo.identifierForVendor
-          .toString(); // Уникальный идентификатор для iOS
-    }
-    print('Device ID: $deviceId');
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalCache();        // ← Загружаем локальные данные
+    getDeviceId();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     getDeviceId();
-    _fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
+    _fetchProfileData();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // getDeviceId();
-    //_fetchProfileData(); // Вызов функции для получения данных профиля при открытии экрана
-  }
+  // ========== Получение deviceId ==========
+  Future<void> getDeviceId() async {
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
 
-Future<void> _fetchProfileData() async {
-  if (deviceId == 'unknown' || deviceId.trim().isEmpty) {
-    print('Device ID не готов');
-    return;
-  }
-
-  try {
-    final encodedId = Uri.encodeComponent(deviceId.trim());
-    final url = 'https://anchih.e-rec.ru/api/profile/?id=$encodedId';
-    final response = await http.get(Uri.parse(url));
-
-    print('Ответ сервера: ${response.body}'); // ← смотрим СЮДА
-
-    if (response.statusCode == 200) {
-      final dynamic data = json.decode(response.body);
-
-      // Проверяем, не ошибка ли пришла
-      if (data is Map<String, dynamic> && data.containsKey('error')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: ${data['error']}')),
-        );
-        return;
-      }
-
-      // Убеждаемся, что data — это Map
-      if (data is! Map<String, dynamic>) {
-        throw Exception('Неверный формат данных');
-      }
-
-      setState(() {
-        _username = data['username'] ?? '';
-        _email = data['email'] ?? '';
-        _firstName = data['first_name'] ?? '';
-        _lastName = data['last_name'] ?? '';
-        _imageUrl = data['photo'] ?? null;
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Сервер вернул статус: ${response.statusCode}')),
-      );
+    if (Platform.isAndroid) {
+      AndroidDeviceInfo info = await deviceInfo.androidInfo;
+      deviceId = info.id;
+    } else if (Platform.isIOS) {
+      IosDeviceInfo info = await deviceInfo.iosInfo;
+      deviceId = info.identifierForVendor ?? "unknown";
     }
-  } catch (e) {
-    print('Ошибка парсинга JSON: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Не удалось обработать данные: $e')),
-    );
-  }
-}
 
+    print("Device ID = $deviceId");
+  }
+
+  // ========== Локальный кэш ==========
+  Future<void> _loadLocalCache() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // Загружаем данные в поля
+    firstNameController.text = prefs.getString("first_name") ?? "";
+    lastNameController.text = prefs.getString("last_name") ?? "";
+    emailController.text = prefs.getString("email") ?? "";
+    usernameController.text = prefs.getString("username") ?? "";
+    _imageUrl = prefs.getString("photo");
+
+    setState(() {});
+  }
+
+  Future<void> _saveLocalCache(Map<String, dynamic> data) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString("first_name", data['first_name'] ?? "");
+    await prefs.setString("last_name", data['last_name'] ?? "");
+    await prefs.setString("email", data['email'] ?? "");
+    await prefs.setString("username", data['username'] ?? "");
+    if (data['photo'] != null) {
+      await prefs.setString("photo", data['photo']);
+    }
+  }
+
+  // ========== Загрузка профиля с API ==========
+  Future<void> _fetchProfileData() async {
+    if (deviceId == "unknown") return;
+
+    try {
+      final encodedId = Uri.encodeComponent(deviceId.trim());
+      final url = 'https://anchih.e-rec.ru/api/profile/?id=$encodedId';
+
+      final response = await http.get(Uri.parse(url));
+
+      print("Ответ сервера: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          // Заполняем поля
+          firstNameController.text = data['first_name'] ?? "";
+          lastNameController.text = data['last_name'] ?? "";
+          emailController.text = data['email'] ?? "";
+          usernameController.text = data['username'] ?? "";
+          _imageUrl = data['photo'];
+
+          // Сохраняем локально
+          await _saveLocalCache(data);
+
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      print("Ошибка загрузки данных: $e");
+    }
+  }
+
+  // ========== Выбор изображения ==========
   Future<void> _pickImage() async {
-    //final picker = ImagePicker();
-    //final pickedFile = await picker.getImage(source: ImageSource.gallery);
-/*
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-    }
-*/
+    // TODO: подключить image_picker
   }
 
+  // ========== Отправка изменений ==========
   Future<void> _submitSettings() async {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
+    if (!_formKey.currentState!.validate()) return;
 
-      // Подготовка данных для отправки
-      final request = http.MultipartRequest(
+    final request = http.MultipartRequest(
         'POST',
-        Uri.parse(
-            'https://anchih.e-rec.ru/api/profile/update_profile'), // Замените на ваш URL
-      );
+        Uri.parse('https://anchih.e-rec.ru/api/profile/update_profile'));
 
-      // Добавление полей формы
-      request.fields['username'] = _username;
-      request.fields['email'] = _email;
-      request.fields['first_name'] = _firstName;
-      request.fields['last_name'] = _lastName;
+    request.fields['username'] = usernameController.text;
+    request.fields['email'] = emailController.text;
+    request.fields['first_name'] = firstNameController.text;
+    request.fields['last_name'] = lastNameController.text;
 
-      // Добавление изображения, если оно выбрано
-      if (_image != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath('photo', _image!.path),
-        );
-      }
+    if (_image != null) {
+      request.files.add(await http.MultipartFile.fromPath("photo", _image!.path));
+    }
 
-      // Отправка запроса
+    try {
       final response = await request.send();
 
       if (response.statusCode == 200) {
-        // Обработка успешного ответа
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Настройки обновлены')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Настройки обновлены")));
+
+        // сохраняем в кэш
+        _saveLocalCache({
+          "username": usernameController.text,
+          "email": emailController.text,
+          "first_name": firstNameController.text,
+          "last_name": lastNameController.text,
+          "photo": _imageUrl
+        });
       } else {
-        // Обработка ошибки
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка обновления настроек')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Ошибка сервера")));
       }
+    } catch (e) {
+      print("Ошибка: $e");
     }
   }
 
+  // ========== UI ==========
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Настройки профиля')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      appBar: AppBar(title: Text("Настройки профиля")),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
@@ -172,73 +173,44 @@ Future<void> _fetchProfileData() async {
               GestureDetector(
                 onTap: _pickImage,
                 child: CircleAvatar(
-                  radius: 100,
+                  radius: 80,
                   backgroundImage: _image != null
                       ? FileImage(_image!)
                       : _imageUrl != null
                           ? NetworkImage(_imageUrl!)
                           : null,
-                  child: _image == null && _imageUrl == null
+                  child: (_image == null && _imageUrl == null)
                       ? Icon(Icons.camera_alt, size: 50)
                       : null,
                 ),
               ),
               SizedBox(height: 20),
+
               TextFormField(
-                decoration: InputDecoration(labelText: 'Имя'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Пожалуйста, введите имя';
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  _firstName = value!;
-                },
+                controller: firstNameController,
+                decoration: InputDecoration(labelText: "Имя"),
+                validator: (v) => v!.isEmpty ? "Введите имя" : null,
               ),
               TextFormField(
-                decoration: InputDecoration(labelText: 'Фамилия'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Пожалуйста, введите фамилию';
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  _lastName = value!;
-                },
+                controller: lastNameController,
+                decoration: InputDecoration(labelText: "Фамилия"),
+                validator: (v) => v!.isEmpty ? "Введите фамилию" : null,
               ),
               TextFormField(
-                decoration: InputDecoration(labelText: 'Email'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Пожалуйста, введите email';
-                  }
-                  if (!RegExp(r'^[^@]+@[^@]+.[^@]+').hasMatch(value)) {
-                    return 'Пожалуйста, введите корректный email';
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  _email = value!;
-                },
+                controller: emailController,
+                decoration: InputDecoration(labelText: "Email"),
+                validator: (v) => v!.isEmpty ? "Введите email" : null,
               ),
               TextFormField(
-                decoration: InputDecoration(labelText: 'Имя пользователя'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Пожалуйста, введите имя пользователя';
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  _username = value!;
-                },
+                controller: usernameController,
+                decoration: InputDecoration(labelText: "Имя пользователя"),
+                validator: (v) => v!.isEmpty ? "Введите имя пользователя" : null,
               ),
+
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _submitSettings,
-                child: Text('Сохранить изменения'),
+                child: Text("Сохранить изменения"),
               ),
             ],
           ),
