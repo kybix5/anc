@@ -52,7 +52,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     }
   }
 
-  // ---------- Локальный кэш ----------
+  // ---------- Локальный кэш 1----------
   Future<void> _loadLocalCache() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
 
